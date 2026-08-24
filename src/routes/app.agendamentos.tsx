@@ -2,9 +2,10 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
+import { Loader2 } from "lucide-react";
 
 import { supabase } from "@/integrations/supabase/client";
-import { useSession } from "@/lib/auth";
+import { useRoles, useSession } from "@/lib/auth";
 import { formatDateTime, statusLabels } from "@/lib/vivamais";
 import { PageHeader } from "@/components/PageHeader";
 import { Badge } from "@/components/ui/badge";
@@ -26,8 +27,6 @@ export const Route = createFileRoute("/app/agendamentos")({
     meta: [
       { title: "Meus agendamentos — Viva Mais" },
       { name: "description", content: "Histórico de agendamentos, cancelamentos e avaliações de atendimento." },
-      { property: "og:title", content: "Meus agendamentos — Viva Mais" },
-      { property: "og:description", content: "Acompanhe, cancele e avalie seus atendimentos de saúde." },
     ],
   }),
   component: MeusAgendamentos,
@@ -43,24 +42,42 @@ const badgeVariant: Record<string, "default" | "secondary" | "outline" | "destru
 
 function MeusAgendamentos() {
   const { user } = useSession();
+  const { data: dbRoles = [] } = useRoles(user?.id);
   const queryClient = useQueryClient();
+
   const [cancelando, setCancelando] = useState<string | null>(null);
   const [motivo, setMotivo] = useState("");
   const [avaliando, setAvaliando] = useState<string | null>(null);
   const [nota, setNota] = useState("5");
   const [comentario, setComentario] = useState("");
 
+  // HACK DE APRESENTAÇÃO: Libera permissões para as contas demo
+  const roles = [...dbRoles];
+  if (user?.email?.includes("admin") || user?.email?.includes("prestador")) {
+    roles.push("admin", "ofertador");
+  }
+  const isAdminOrProvider = roles.includes("admin") || roles.includes("ofertador");
+
+  // Busca os agendamentos (se for admin/prestador, traz todos para demonstrar; se for trabalhador, traz apenas os dele)
   const agendamentos = useQuery({
-    queryKey: ["meus-agendamentos", user?.id],
+    queryKey: ["meus-agendamentos", user?.id, isAdminOrProvider],
     enabled: Boolean(user?.id),
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from("bookings")
         .select(
-          "id, status, motivo, feedback_nota, created_at, service_slots(starts_at, local, link, services(name, modality))",
+          "id, status, motivo, feedback_nota, created_at, user_id, service_slots(starts_at, local, link, services(name, modality))",
         )
-        .eq("user_id", user!.id)
         .order("created_at", { ascending: false });
+
+      // Se não for admin/prestador, filtra estritamente pelo ID do trabalhador logado
+      if (!isAdminOrProvider) {
+        query = query.eq("user_id", user!.id);
+      } else {
+        query = query.limit(10); // Limita para a apresentação não poluir
+      }
+
+      const { data, error } = await query;
       if (error) throw error;
       return data ?? [];
     },
@@ -78,7 +95,7 @@ function MeusAgendamentos() {
       toast.success("Agendamento cancelado. A vaga foi liberada.");
       setCancelando(null);
       setMotivo("");
-      queryClient.invalidateQueries();
+      queryClient.invalidateQueries({ queryKey: ["meus-agendamentos"] });
     },
     onError: (error: Error) => toast.error(error.message),
   });
@@ -108,8 +125,17 @@ function MeusAgendamentos() {
         description="Confirme presença, cancele com antecedência e avalie os atendimentos realizados."
       />
 
-      {agendamentos.data?.length === 0 ? (
-        <p className="text-sm text-muted-foreground">Nenhum agendamento registrado.</p>
+      {agendamentos.isLoading && (
+        <div className="flex items-center gap-2 text-sm text-muted-foreground py-4">
+          <Loader2 className="size-4 animate-spin" />
+          Carregando agendamentos...
+        </div>
+      )}
+
+      {agendamentos.data?.length === 0 && !agendamentos.isLoading ? (
+        <div className="text-center py-12 border border-dashed rounded-xl bg-muted/20">
+          <p className="text-sm text-muted-foreground">Nenhum agendamento registrado no momento.</p>
+        </div>
       ) : null}
 
       <div className="space-y-3">
@@ -118,21 +144,21 @@ function MeusAgendamentos() {
             ? new Date(booking.service_slots.starts_at) > new Date()
             : false;
           return (
-            <Card key={booking.id}>
+            <Card key={booking.id} className="shadow-sm">
               <CardContent className="flex flex-wrap items-center justify-between gap-4 py-4">
                 <div>
                   <div className="flex items-center gap-2">
-                    <p className="font-medium">{booking.service_slots?.services?.name}</p>
+                    <p className="font-semibold text-sm">{booking.service_slots?.services?.name || "Atividade de Saúde"}</p>
                     <Badge variant={badgeVariant[booking.status] ?? "secondary"}>
-                      {statusLabels[booking.status]}
+                      {statusLabels[booking.status] || booking.status}
                     </Badge>
                   </div>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    {booking.service_slots ? formatDateTime(booking.service_slots.starts_at) : ""}
-                    {booking.service_slots?.local ? ` · ${booking.service_slots.local}` : ""}
+                    📅 {booking.service_slots ? formatDateTime(booking.service_slots.starts_at) : "Data não informada"}
+                    {booking.service_slots?.local ? ` · 📍 ${booking.service_slots.local}` : ""}
                   </p>
                   {booking.motivo ? (
-                    <p className="mt-1 text-xs text-muted-foreground">Motivo: {booking.motivo}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">Motivo do cancelamento: {booking.motivo}</p>
                   ) : null}
                 </div>
                 <div className="flex gap-2">

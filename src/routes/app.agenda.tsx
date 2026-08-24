@@ -39,10 +39,8 @@ function Agenda() {
       const { data, error } = await supabase
         .from("service_slots")
         .select(
-          "id, starts_at, ends_at, capacity, local, link, service_id, services(id, name, description, categoria, modality, duration_min)",
+          "id, starts_at, total_spots, local, service_id, services(id, name, description, modality)",
         )
-        .eq("cancelled", false)
-        .gt("starts_at", new Date().toISOString())
         .order("starts_at");
       if (error) throw error;
       return data ?? [];
@@ -75,11 +73,11 @@ function Agenda() {
 
   const agendar = useMutation({
     mutationFn: async (slotId: string) => {
-      const { error } = await supabase.from("bookings").insert({ slot_id: slotId, user_id: user!.id });
+      const { error } = await supabase.from("bookings").insert({ slot_id: slotId, user_id: user!.id, status: "agendado" });
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("Agendamento confirmado! Você receberá o lembrete por e-mail.");
+      toast.success("Agendamento confirmado! Você já pode acompanhar em 'Meus agendamentos'.");
       queryClient.invalidateQueries({ queryKey: ["minhas-reservas"] });
       queryClient.invalidateQueries({ queryKey: ["ocupacao-slots"] });
       queryClient.invalidateQueries({ queryKey: ["proximos-agendamentos"] });
@@ -88,12 +86,12 @@ function Agenda() {
   });
 
   const categorias = useMemo(() => {
-    const set = new Set((slots.data ?? []).map((slot) => slot.services?.categoria).filter(Boolean));
+    const set = new Set((slots.data ?? []).map((slot: any) => slot.services?.modality).filter(Boolean));
     return Array.from(set) as string[];
   }, [slots.data]);
 
   const lista = (slots.data ?? []).filter(
-    (slot) => filtro === "todos" || slot.services?.categoria === filtro,
+    (slot: any) => filtro === "todos" || slot.services?.modality === filtro,
   );
 
   return (
@@ -105,13 +103,13 @@ function Agenda() {
         action={
           <Select value={filtro} onValueChange={setFiltro}>
             <SelectTrigger className="w-56">
-              <SelectValue placeholder="Filtrar por categoria" />
+              <SelectValue placeholder="Filtrar por modalidade" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="todos">Todas as categorias</SelectItem>
-              {categorias.map((categoria) => (
-                <SelectItem key={categoria} value={categoria}>
-                  {categoriasServico[categoria] ?? categoria}
+              <SelectItem value="todos">Todas as modalidades</SelectItem>
+              {categorias.map((cat) => (
+                <SelectItem key={cat} value={cat}>
+                  {cat === "coletiva" ? "Coletiva" : "Individual"}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -125,15 +123,17 @@ function Agenda() {
       ) : null}
 
       <div className="grid gap-4 sm:grid-cols-2">
-        {lista.map((slot) => {
+        {lista.map((slot: any) => {
+          const vagasTotais = slot.total_spots ?? 10;
           const usadas = ocupacao.data?.get(slot.id) ?? 0;
-          const restantes = Math.max(slot.capacity - usadas, 0);
+          const restantes = Math.max(vagasTotais - usadas, 0);
           const minha = bookings.data?.find((b) => b.slot_id === slot.id && b.status !== "cancelado");
+
           return (
             <Card key={slot.id}>
               <CardHeader className="pb-3">
                 <div className="flex items-start justify-between gap-3">
-                  <CardTitle className="text-base">{slot.services?.name}</CardTitle>
+                  <CardTitle className="text-base">{slot.services?.name || "Atividade de Saúde"}</CardTitle>
                   <Badge variant={slot.services?.modality === "coletiva" ? "secondary" : "outline"}>
                     {slot.services?.modality === "coletiva" ? "Coletiva" : "Individual"}
                   </Badge>
@@ -145,13 +145,12 @@ function Agenda() {
                 <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
                   <span className="flex items-center gap-1">
                     <MapPin className="size-3.5" />
-                    {slot.local || slot.link || "A definir"}
+                    {slot.local || "Local a definir"}
                   </span>
                   <span className="flex items-center gap-1">
                     <Users className="size-3.5" />
-                    {restantes} de {slot.capacity} vaga(s)
+                    {restantes} de {vagasTotais} vaga(s)
                   </span>
-                  <span>{slot.services?.duration_min} min</span>
                 </div>
                 {minha ? (
                   <Button size="sm" variant="secondary" disabled className="w-full">
