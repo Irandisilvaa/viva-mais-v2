@@ -57,6 +57,24 @@ function AuthPage() {
   const update = (key: keyof typeof form) => (event: React.ChangeEvent<HTMLInputElement>) =>
     setForm((prev) => ({ ...prev, [key]: event.target.value }));
 
+  // Função exclusiva para os botões de demonstração (Login Expresso)
+  async function handleDemoLogin(emailDemo: string) {
+    setBusy(true);
+    try {
+      const { error } = await supabase.auth.signInWithPassword({
+        email: emailDemo,
+        password: "VivaMais@2026",
+      });
+      if (error) throw error;
+      toast.success("Login de demonstração realizado com sucesso!");
+      navigate({ to: "/app" });
+    } catch (error: any) {
+      toast.error("Erro ao entrar: " + (error.message || "Verifique se o usuário existe no banco."));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
     const parsed = credenciais.safeParse(form);
@@ -226,18 +244,16 @@ function AuthPage() {
           <div className="mt-6 rounded-lg border border-dashed bg-muted/40 p-4">
             <p className="text-sm font-medium">Contas de demonstração</p>
             <p className="mt-1 text-xs text-muted-foreground">
-              Clique para preencher o login. Senha padrão: <strong>VivaMais@2026</strong>
+              Clique para fazer login instantâneo. Senha padrão: <strong>VivaMais@2026</strong>
             </p>
             <div className="mt-3 grid gap-2">
               {contasDemo.map((conta) => (
                 <button
                   key={conta.email}
                   type="button"
-                  onClick={() => {
-                    setTab("login");
-                    setForm((prev) => ({ ...prev, email: conta.email, password: "VivaMais@2026" }));
-                  }}
-                  className="flex items-center justify-between rounded-md border bg-background px-3 py-2 text-left text-xs transition hover:bg-accent"
+                  onClick={() => handleDemoLogin(conta.email)}
+                  disabled={busy}
+                  className="flex items-center justify-between rounded-md border bg-background px-3 py-2 text-left text-xs transition hover:bg-accent disabled:opacity-50"
                 >
                   <span>
                     <span className="block font-medium">{conta.perfil}</span>
