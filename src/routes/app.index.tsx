@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowRight, BookOpenText, CalendarCheck, HeartPulse, Trophy } from "lucide-react";
+import { ArrowRight, BookOpenText, CalendarCheck, CalendarX2, HeartPulse, Loader2, Trophy } from "lucide-react";
 
 import { supabase } from "@/integrations/supabase/client";
 import { useProfile, useSession } from "@/lib/auth";
@@ -15,8 +15,6 @@ export const Route = createFileRoute("/app/")({
     meta: [
       { title: "Início — Viva Mais" },
       { name: "description", content: "Seus próximos agendamentos, bem-estar e campanhas ativas." },
-      { property: "og:title", content: "Início — Viva Mais" },
-      { property: "og:description", content: "Painel do trabalhador na plataforma Viva Mais." },
     ],
   }),
   component: Inicio,
@@ -81,91 +79,122 @@ function Inicio() {
   return (
     <>
       <PageHeader
-        eyebrow="Viva Mais"
-        title={primeiroNome ? `Olá, ${primeiroNome}` : "Olá"}
-        description="Acompanhe seu cuidado: agendamentos, bem-estar, conteúdos e campanhas."
+        eyebrow="Painel do Trabalhador"
+        title={primeiroNome ? `Olá, ${primeiroNome}! 👋` : "Olá! 👋"}
+        description="Acompanhe seu cuidado diário: agendamentos, bem-estar, conteúdos e campanhas."
       />
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-6">
         {atalhos.map((atalho) => (
           <Link
             key={atalho.to}
             to={atalho.to}
-            className="group flex items-center gap-3 rounded-2xl border border-border bg-card p-4 shadow-soft transition-shadow hover:shadow-lift"
+            className="group flex items-center gap-3 rounded-2xl border bg-card p-4 shadow-sm transition-all hover:shadow-md hover:border-primary/50"
           >
-            <span className="grid size-10 place-items-center rounded-xl bg-secondary text-secondary-foreground">
+            <span className="grid size-11 place-items-center rounded-xl bg-primary/10 text-primary">
               <atalho.icon className="size-5" />
             </span>
             <span className="text-sm font-medium">{atalho.label}</span>
-            <ArrowRight className="ml-auto size-4 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+            <ArrowRight className="ml-auto size-4 text-muted-foreground transition-transform group-hover:translate-x-1" />
           </Link>
         ))}
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <Card>
+        {/* Card de Agendamentos */}
+        <Card className="shadow-sm">
           <CardHeader>
-            <CardTitle className="text-base">Próximos agendamentos</CardTitle>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <CalendarCheck className="size-5 text-primary" />
+              Próximos Agendamentos
+            </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-3">
-            {proximos.isLoading ? <p className="text-sm text-muted-foreground">Carregando…</p> : null}
-            {proximos.data?.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                Você ainda não tem agendamentos.{" "}
-                <Link to="/app/agenda" className="text-primary underline">
-                  Ver horários disponíveis
-                </Link>
-              </p>
-            ) : null}
+          <CardContent className="space-y-4">
+            {proximos.isLoading && (
+              <div className="flex justify-center py-6">
+                <Loader2 className="size-6 animate-spin text-muted-foreground" />
+              </div>
+            )}
+            
+            {proximos.data?.length === 0 && (
+              <div className="flex flex-col items-center text-center py-8 bg-muted/30 rounded-xl border border-dashed">
+                <CalendarX2 className="size-10 text-muted-foreground/50 mb-3" />
+                <p className="text-sm text-muted-foreground mb-4">Você ainda não tem serviços agendados.</p>
+                <Button asChild variant="outline" size="sm">
+                  <Link to="/app/agenda">Ver horários disponíveis</Link>
+                </Button>
+              </div>
+            )}
+
             {proximos.data?.map((booking) => (
-              <div key={booking.id} className="rounded-xl border border-border p-3">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-sm font-medium">{booking.service_slots?.services?.name}</p>
-                  <Badge variant="secondary">{statusLabels[booking.status]}</Badge>
+              <div key={booking.id} className="flex items-center justify-between rounded-xl border p-4 transition-colors hover:bg-muted/50">
+                <div>
+                  <p className="text-sm font-semibold">{booking.service_slots?.services?.name}</p>
+                  <p className="mt-1 text-xs text-muted-foreground flex items-center gap-1">
+                    {booking.service_slots ? formatDateTime(booking.service_slots.starts_at) : ""}
+                    {booking.service_slots?.local ? ` • ${booking.service_slots.local}` : ""}
+                  </p>
                 </div>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {booking.service_slots ? formatDateTime(booking.service_slots.starts_at) : ""}
-                  {booking.service_slots?.local ? ` · ${booking.service_slots.local}` : ""}
-                </p>
+                <Badge variant="secondary" className="px-3 py-1">{statusLabels[booking.status]}</Badge>
               </div>
             ))}
           </CardContent>
         </Card>
 
         <div className="space-y-6">
-          <Card>
+          {/* Card de Bem-Estar */}
+          <Card className="shadow-sm">
             <CardHeader>
-              <CardTitle className="text-base">Como você está?</CardTitle>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <HeartPulse className="size-5 text-primary" />
+                Como você está hoje?
+              </CardTitle>
             </CardHeader>
             <CardContent>
               {checkin.data ? (
-                <p className="text-sm text-muted-foreground">
-                  Último check-in em {formatDate(checkin.data.created_at)} · humor {checkin.data.humor}/5 ·
-                  energia {checkin.data.energia}/5
-                </p>
+                <div className="rounded-xl border bg-muted/20 p-4">
+                  <p className="text-sm text-muted-foreground mb-2">
+                    Último check-in: <span className="font-medium text-foreground">{formatDate(checkin.data.created_at)}</span>
+                  </p>
+                  <div className="flex gap-2">
+                    <Badge variant="outline" className="bg-background">Humor {checkin.data.humor}/5</Badge>
+                    <Badge variant="outline" className="bg-background">Energia {checkin.data.energia}/5</Badge>
+                  </div>
+                </div>
               ) : (
-                <p className="text-sm text-muted-foreground">Você ainda não registrou seu bem-estar.</p>
+                <p className="text-sm text-muted-foreground mb-4">Você ainda não registrou seu nível de bem-estar hoje.</p>
               )}
-              <Button asChild size="sm" className="mt-4">
-                <Link to="/app/bem-estar">Registrar agora</Link>
+              <Button asChild className="w-full mt-4">
+                <Link to="/app/bem-estar">Registrar Check-in</Link>
               </Button>
             </CardContent>
           </Card>
 
-          <Card>
+          {/* Card de Campanhas */}
+          <Card className="shadow-sm">
             <CardHeader>
-              <CardTitle className="text-base">Campanhas em andamento</CardTitle>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Trophy className="size-5 text-primary" />
+                Campanhas Ativas
+              </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-2">
+            <CardContent className="space-y-3">
+              {campanhas.isLoading && (
+                <div className="flex justify-center py-4">
+                  <Loader2 className="size-5 animate-spin text-muted-foreground" />
+                </div>
+              )}
+              
+              {campanhas.data?.length === 0 && (
+                <p className="text-sm text-muted-foreground text-center py-4">Nenhuma campanha institucional no momento.</p>
+              )}
+
               {campanhas.data?.map((campanha) => (
-                <div key={campanha.id} className="flex items-center justify-between gap-2 text-sm">
-                  <span>{campanha.title}</span>
-                  <Badge variant="outline">{kindLabels[campanha.kind]}</Badge>
+                <div key={campanha.id} className="flex items-center justify-between gap-3 rounded-lg border p-3">
+                  <span className="text-sm font-medium line-clamp-1">{campanha.title}</span>
+                  <Badge variant="secondary" className="whitespace-nowrap">{kindLabels[campanha.kind]}</Badge>
                 </div>
               ))}
-              {campanhas.data?.length === 0 ? (
-                <p className="text-sm text-muted-foreground">Nenhuma campanha ativa.</p>
-              ) : null}
             </CardContent>
           </Card>
         </div>

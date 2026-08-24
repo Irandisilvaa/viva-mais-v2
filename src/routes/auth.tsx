@@ -29,9 +29,10 @@ export const Route = createFileRoute("/auth")({
 });
 
 const contasDemo = [
-  { perfil: "Administrador / Gestor", email: "admin@vivamais.dev", telas: "Administração + Indicadores" },
-  { perfil: "Prestador de serviço", email: "prestador@vivamais.dev", telas: "Meus atendimentos" },
-  { perfil: "Usuário (trabalhador)", email: "usuario@vivamais.dev", telas: "Agenda, bem-estar, metas" },
+  { perfil: "Administrador Geral", email: "admin@vivamais.dev", telas: "Tudo liberado" },
+  { perfil: "Gestor (RH/Saúde)", email: "gestor@vivamais.dev", telas: "Painel de Indicadores" },
+  { perfil: "Prestador de Serviço", email: "prestador@vivamais.dev", telas: "Meus Atendimentos" },
+  { perfil: "Usuário (Trabalhador)", email: "usuario@vivamais.dev", telas: "Agenda e Bem-estar" },
 ];
 
 const credenciais = z.object({
